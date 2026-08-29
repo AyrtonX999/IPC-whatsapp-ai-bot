@@ -49,8 +49,9 @@ async def receive_webhook(request: Request):
 
 def ask_gemini(user_prompt: str) -> str:
     try:
+        # Corregido al modelo oficial disponible
         response = ai_client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.0-flash',
             contents=user_prompt,
         )
         return response.text
@@ -71,4 +72,4 @@ def send_whatsapp_message(to_number: str, message_text: str):
         "text": {"body": message_text}
     }
     res = requests.post(url, json=payload, headers=headers)
-    print("Respuesta Meta API:", res.status_code)	
+    print("Respuesta Meta API:", res.status_code)
