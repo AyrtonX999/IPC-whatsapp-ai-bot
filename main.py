@@ -51,7 +51,7 @@ def ask_gemini(user_prompt: str) -> str:
     try:
         # Corregido al modelo oficial disponible
         response = ai_client.models.generate_content(
-            model='gemini-1.5-flash',
+            model='gemini-2.5-flash',
             contents=user_prompt,
         )
         return response.text
