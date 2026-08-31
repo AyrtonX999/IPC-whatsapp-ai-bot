@@ -10,6 +10,9 @@ ACCESS_TOKEN = "EAAP4ZAc70DrQBSbsPK5QpbbBtVAhILGBEU0qC4JFrxB04xqtPBizQomzM3SFbsE
 PHONE_NUMBER_ID = "1350712648117758"
 VERIFY_TOKEN = "IPC_SECRET_TOKEN_2026"
 
+# Número al que se notificará la derivación comercial
+AGENTE_COMERCIAL_NUMBER = "51924726495"
+
 # Inicializar cliente de Gemini de forma segura usando variables de entorno
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -43,8 +46,9 @@ SYSTEM_INSTRUCTION_TEXT = (
     "2. Pregunta cuál es su requerimiento principal (almacenamiento en frío, transporte, laboratorio o mobiliario).\n"
     "3. Haz preguntas específicas según la categoría (temperatura, volumen en litros, horas de autonomía o área de uso).\n"
     "4. Recomienda 1 o 2 productos exactos del portafolio justificando con sus características técnicas.\n"
-    "5. Ofrece servicios complementarios (calibración, calificación, instalación) cuando corresponda.\n"
-    "6. Cierra brindando los datos de contacto oficiales: correo (informes@ipcassociates-la.com), web (www.ipcassociates-la.com) y teléfonos (Perú +51 480 0647, Colombia +57 310 876 7402, Panamá +507 833 7346).\n\n"
+    "5. **CIERRE Y DERIVACIÓN:** Después de entregar toda la información y la recomendación técnica, pregunta amablemente al cliente si se encuentra interesado para derivarlo con un Agente Comercial.\n"
+    "6. **DETECCIÓN DE INTERÉS:** Si el cliente responde afirmativamente (por ejemplo: 'sí', 'estoy interesado', 'quiero que me contacten', 'me avisan'), DEBES incluir obligatoriamente en tu respuesta la frase exacta: [DERIVAR_VENTAS] seguida de un resumen breve del equipo o servicio que le interesa y sus datos.\n"
+    "7. Cierra brindando los datos de contacto oficiales: correo (informes@ipcassociates-la.com), web (www.ipcassociates-la.com) y teléfonos (Perú +51 480 0647, Colombia +57 310 876 7402, Panamá +507 833 7346).\n\n"
     "REGLAS: NUNCA des precios ni menciones productos fuera de esta lista."
 )
 
@@ -74,7 +78,25 @@ async def receive_webhook(request: Request):
                 print(f"Mensaje recibido de {number}: {text_received}")
                 
                 ai_response = ask_gemini_with_memory(number, text_received)
-                send_whatsapp_message(number, ai_response)
+                
+                # Verificamos si el bot detectó que el cliente aceptó la derivación
+                if "[DERIVAR_VENTAS]" in ai_response:
+                    # Limpiamos la etiqueta interna para que el cliente no la vea en su WhatsApp
+                    clean_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
+                    
+                    # Mandamos la respuesta final al cliente
+                    send_whatsapp_message(number, clean_response)
+                    
+                    # Enviamos la alerta automática al número del Agente Comercial
+                    alerta_texto = (
+                        f"🚨 *NUEVO LEAD / DERIVACIÓN COMERCIAL*\n\n"
+                        f"📱 *Número del cliente:* +{number}\n"
+                        f"💬 *Detalle e Interés:* {clean_response}"
+                    )
+                    send_whatsapp_message(AGENTE_COMERCIAL_NUMBER, alerta_texto)
+                else:
+                    # Flujo normal de conversación
+                    send_whatsapp_message(number, ai_response)
                 
     except Exception as e:
         print("Error al procesar webhook:", e)
@@ -83,7 +105,6 @@ async def receive_webhook(request: Request):
 
 def ask_gemini_with_memory(user_number: str, user_prompt: str) -> str:
     try:
-        # Si el número no tiene un chat activo creado, se lo creamos con su respectiva system instruction
         if user_number not in active_chats:
             active_chats[user_number] = ai_client.chats.create(
                 model='gemini-3.6-flash',
@@ -92,14 +113,12 @@ def ask_gemini_with_memory(user_number: str, user_prompt: str) -> str:
                 }
             )
         
-        # Enviamos el mensaje utilizando la sesión de chat existente para que mantenga el contexto
         chat_session = active_chats[user_number]
         response = chat_session.send_message(user_prompt)
         
         return response.text
     except Exception as e:
         print("Error detallado en Gemini con memoria:", e)
-        # Si ocurre algún error de expiración o límite, reiniciamos el chat de ese número
         if user_number in active_chats:
             del active_chats[user_number]
         return "Lo siento, tuve un breve inconveniente procesando tu mensaje. ¿Podrías repetirlo por favor?"
@@ -117,4 +136,4 @@ def send_whatsapp_message(to_number: str, message_text: str):
         "text": {"body": message_text}
     }
     res = requests.post(url, json=payload, headers=headers)
-    print("Respuesta Meta API:", res.status_code)
+    print("Respuesta Meta API para", to_number, ":", res.status_code)
