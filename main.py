@@ -49,9 +49,9 @@ async def receive_webhook(request: Request):
 
 def ask_gemini(user_prompt: str) -> str:
     try:
-        # Usamos gemini-2.0-flash por estabilidad y cuota disponible
+        # Actualizado al modelo oficial requerido por Google
         response = ai_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-3.6-flash',
             contents=user_prompt,
             config={
                 'system_instruction': (
@@ -80,7 +80,7 @@ def ask_gemini(user_prompt: str) -> str:
                     "2. Pregunta cuál es su requerimiento principal (almacenamiento en frío, transporte, laboratorio o mobiliario).\n"
                     "3. Haz preguntas específicas según la categoría (temperatura, volumen en litros, horas de autonomía o área de uso).\n"
                     "4. Recomienda 1 o 2 productos exactos del portafolio justificando con sus características técnicas.\n"
-                    "5. Ofrece servicios complementarios (calibración, calificación, instalación) cuando corresponda.\n"
+                    "5. Ofrece servicios complementarios (calibración, calificación, installation) cuando corresponda.\n"
                     "6. Cierra brindando los datos de contacto oficiales: correo (informes@ipcassociates-la.com), web (www.ipcassociates-la.com) y teléfonos (Perú +51 480 0647, Colombia +57 310 876 7402, Panamá +507 833 7346).\n\n"
                     "REGLAS: NUNCA des precios ni menciones productos fuera de esta lista."
                 )
