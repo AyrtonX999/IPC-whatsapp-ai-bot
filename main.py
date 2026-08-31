@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request, Response
 from google import genai
 import requests
 import os
+import time
 
 app = FastAPI()
 
@@ -17,8 +18,13 @@ AGENTE_COMERCIAL_NUMBER = "51924726495"
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Diccionario en memoria para almacenar la sesión de chat activa por cada número de WhatsApp
+# Diccionarios en memoria para almacenar la sesión activa y el tiempo del último mensaje
 active_chats = {}
+last_message_times = {}
+
+# Tiempo de inactividad en segundos (Ejemplo: 900 segundos = 15 minutos)
+# Si pasan 15 minutos sin hablar, la conversación se reinicia sola desde cero.
+INACTIVITY_TIMEOUT = 900
 
 SYSTEM_INSTRUCTION_TEXT = (
     "Eres un asesor comercial y especialista en atención al cliente de IPC Associates, "
@@ -72,7 +78,6 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
-            # Rescatar número si viene de cuentas con alias o nombre de usuario
             if not number and 'contacts' in value and len(value['contacts']) > 0:
                 number = value['contacts'][0].get('wa_id')
             
@@ -81,17 +86,12 @@ async def receive_webhook(request: Request):
                 
                 print(f"Mensaje recibido de {number}: {text_received}")
                 
-                ai_response = ask_gemini_with_memory(number, text_received)
+                ai_response = ask_gemini_comercial(number, text_received)
                 
-                # Verificamos si el bot detectó que el cliente aceptó la derivación
                 if "[DERIVAR_VENTAS]" in ai_response:
-                    # Limpiamos la etiqueta interna para que el cliente no la vea en su WhatsApp
                     clean_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
-                    
-                    # Mandamos la respuesta final al cliente
                     send_whatsapp_message(number, clean_response)
                     
-                    # Enviamos la alerta automática al número del Agente Comercial
                     alerta_texto = (
                         f"🚨 *NUEVO LEAD / DERIVACIÓN COMERCIAL*\n\n"
                         f"📱 *Número del cliente:* +{number}\n"
@@ -99,7 +99,6 @@ async def receive_webhook(request: Request):
                     )
                     send_whatsapp_message(AGENTE_COMERCIAL_NUMBER, alerta_texto)
                 else:
-                    # Flujo normal de conversación
                     send_whatsapp_message(number, ai_response)
             else:
                 print("Evento recibido sin número de teléfono válido.")
@@ -109,8 +108,22 @@ async def receive_webhook(request: Request):
         
     return {"status": "ok"}
 
-def ask_gemini_with_memory(user_number: str, user_prompt: str) -> str:
+def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
     try:
+        current_time = time.time()
+        
+        # Verificar si ha pasado el tiempo límite de inactividad para reiniciar la sesión
+        if user_number in last_message_times:
+            elapsed_time = current_time - last_message_times[user_number]
+            if elapsed_time > INACTIVITY_TIMEOUT:
+                print(f"Sesión expirada para {user_number} por inactividad. Reiniciando desde cero.")
+                if user_number in active_chats:
+                    del active_chats[user_number]
+        
+        # Actualizar el registro del último mensaje de este usuario
+        last_message_times[user_number] = current_time
+
+        # Crear nueva sesión si no existe (o si acaba de expirar)
         if user_number not in active_chats:
             active_chats[user_number] = ai_client.chats.create(
                 model='gemini-3.6-flash',
@@ -124,9 +137,11 @@ def ask_gemini_with_memory(user_number: str, user_prompt: str) -> str:
         
         return response.text
     except Exception as e:
-        print("Error detallado en Gemini con memoria:", e)
+        print("Error detallado en Gemini:", e)
         if user_number in active_chats:
             del active_chats[user_number]
+        if user_number in last_message_times:
+            del last_message_times[user_number]
         return "Lo siento, tuve un breve inconveniente procesando tu mensaje. ¿Podrías repetirlo por favor?"
 
 def send_whatsapp_message(to_number: str, message_text: str):
