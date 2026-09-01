@@ -11,29 +11,26 @@ ACCESS_TOKEN = "EAAP4ZAc70DrQBSbsPK5QpbbBtVAhILGBEU0qC4JFrxB04xqtPBizQomzM3SFbsE
 PHONE_NUMBER_ID = "1350712648117758"
 VERIFY_TOKEN = "IPC_SECRET_TOKEN_2026"
 
-# Número al que se notificará la derivación comercial
 AGENTE_COMERCIAL_NUMBER = "51924726495"
 
-# Inicializar cliente de Gemini de forma segura usando variables de entorno
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
-# Diccionarios en memoria para almacenar la sesión activa y el tiempo del último mensaje
 active_chats = {}
 last_message_times = {}
 
-# Tiempo de inactividad de 10 minutos para reiniciar chats viejos automáticamente
-INACTIVITY_TIMEOUT = 600
+# Aumentamos el tiempo de inactividad a 30 minutos (1800 segundos) para evitar que la memoria se borre muy rápido
+INACTIVITY_TIMEOUT = 1800
 
 SYSTEM_INSTRUCTION_TEXT = (
     "Eres un asesor técnico estricto de IPC Associates. "
     "REGLAS ABSOLUTAS:\n"
-    "1. Sé extremadamente breve y directo. Cero textos largos, cero saludos repetitivos, cero rodeos.\n"
-    "2. Responde únicamente a la pregunta exacta que te hace el usuario en el mensaje actual.\n"
-    "3. No inventes productos ni des precios. Portafolio válido: Equipos de frío (Ice-Lined, ultracongeladoras, bancos de sangre, congeladoras), "
+    "1. NO vuelvas a saludar ni te presentes de nuevo si ya comenzó la conversación. Ve directo al grano.\n"
+    "2. Responde exclusivamente a lo que el usuario te pregunta en su mensaje actual de manera breve y profesional.\n"
+    "3. Portafolio válido: Equipos de frío (Ice-Lined, ultracongeladoras, bancos de sangre, congeladoras), "
     "Equipos de laboratorio (Campanas de flujo, bioseguridad, incubadoras, centrífugas), Contenedores pasivos (IPC Box, maletines térmicos) "
-    "y Mobiliario médico (Camas, carros de paro, mesas).\n"
-    "4. Si el cliente muestra interés de compra o pide cotización, responde con la información solicitada y añade obligatoriamente la frase: [DERIVAR_VENTAS]."
+    "y Mobiliario médico (Camas, carros de paro, mesas). Nunca inventes precios ni productos ajenos a esta lista.\n"
+    "4. Si el cliente muestra interés de compra o pide cotización, responde puntualmente y añade obligatoriamente la frase: [DERIVAR_VENTAS]."
 )
 
 @app.get("/webhook")
@@ -49,11 +46,7 @@ async def receive_webhook(request: Request):
         data = await request.json()
         entry = data.get('entry', [])[0]
         changes = entry.get('changes', [])[0]
-        value = changes.get('changes', {}) if 'changes' in changes else changes.get('value', {})
-        
-        # Corrección segura para la estructura de Meta
-        if 'value' in changes:
-            value = changes['value']
+        value = changes.get('value', {})
 
         if 'messages' in value and len(value['messages']) > 0:
             message_obj = value['messages'][0]
@@ -91,6 +84,7 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
     try:
         current_time = time.time()
         
+        # Validar inactividad con un tiempo más holgado (30 min)
         if user_number in last_message_times:
             if current_time - last_message_times[user_number] > INACTIVITY_TIMEOUT:
                 if user_number in active_chats:
