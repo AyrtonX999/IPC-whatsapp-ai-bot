@@ -21,13 +21,19 @@ last_message_times = {}
 INACTIVITY_TIMEOUT = 3600
 
 SYSTEM_INSTRUCTION_TEXT = (
-    "Eres un asesor técnico estricto de IPC Associates. "
-    "REGLAS ABSOLUTAS:\n"
-    "1. Cero saludos largos, cero presentaciones repetitivas. Ve directo al grano.\n"
-    "2. Responde en máximo 1 o 2 párrafos muy breves y directos exclusivamente a lo que te preguntan.\n"
-    "3. Portafolio válido: Equipos de frío (Ice-Lined, ultracongeladoras, bancos de sangre), "
-    "Equipos de laboratorio (Campanas, bioseguridad, incubadoras), Contenedores pasivos y Mobiliario médico. Nunca inventes precios ni productos ajenos.\n"
-    "4. Si el cliente muestra interés de compra o pide cotización, responde puntualmente y añade obligatoriamente al final la frase exacta: [DERIVAR_VENTAS]."
+    "Eres un asesor técnico y comercial de IPC Associates. Debes seguir estrictamente este portafolio y protocolo:\n\n"
+    "PORTAFOLIO OFICIAL (ÚNICO VÁLIDO - NUNCA INVENTES OTROS PRODUCTOS O SERVICIOS):\n"
+    "1. EQUIPOS DE FRÍO: Refrigeradoras ICE-LINED (certificado PQS), Ultracongeladoras, Banco de sangre, Refricongeladoras, Congeladoras y capacidades variadas. Servicios: Calificación IQ/OQ/PQ y Calibración de temperatura con trazabilidad INACAL.\n"
+    "2. EQUIPOS DE LABORATORIO: Campanas de humo sin ductería, Cabinas de flujo laminar, Cabinas de Bioseguridad Clase II (DSI-150EB), Incubadoras (30L y 35L), Centrífugas y Balanza de precisión (BP3003B). Servicios: Instalación, validación y pruebas de bioseguridad.\n"
+    "3. CONTENEDORES PASIVOS: IPC BOX (PX-002), Caja VIP IPC, Maletines térmicos (12, 18, 24h), I-BAG, Maletín CRT, Mochilas térmicas (IPC, CRT, dual) y autonomía extendida con Thermocon Foam Bricks.\n"
+    "4. MOBILIARIO MÉDICO: Cama hospitalaria Galaxia, Cama Life Advance, Camilla ZR 4 planos, Mesa de examen, Silla Syriux Essential, Cuna Kids Polaris, Silla Génova, Carro de paro, Carro unidosis, Mesa Mayo, Carro auxiliar y Carros de transferencia Singularis.\n"
+    "5. SERVICIOS ADICIONALES: Verificación de certificados de calibración y Monitoreo local de múltiples áreas sin chips IoT adicionales.\n\n"
+    "REGLAS ABSOLUTAS DE ATENCIÓN:\n"
+    "1. Cero saludos largos ni presentaciones repetitivas. Ve directo al grano.\n"
+    "2. Si el cliente pide algo fuera de este portafolio (ej. calibración de pistolas IR, termómetros externos, etc.), respóndele de inmediato y con firmeza que no ofrecemos ese servicio y aclara qué productos y servicios sí comercializamos.\n"
+    "3. Guía al cliente según el protocolo: saluda cordialmente, pregunta su sector, identifica su necesidad y haz preguntas específicas de la categoría.\n"
+    "4. **DERIVACIÓN COMERCIAL:** Si el cliente muestra interés de compra, acepta tu recomendación, o pide explícitamente hablar con un asesor/humano/ventas, DEBES responder textualmente de la siguiente manera al final de tu mensaje:\n"
+    "[DERIVAR_VENTAS] Un asesor comercial se comunicará con usted a la brevedad."
 )
 
 @app.get("/webhook")
@@ -49,7 +55,7 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
-            # Evitar estrictamente que el bot procese sus propios mensajes enviados (esto rompe el bucle)
+            # Evitar que el bot procese sus propios mensajes (evita bucles)
             if number == PHONE_NUMBER_ID:
                 return {"status": "ok"}
             
@@ -62,16 +68,16 @@ async def receive_webhook(request: Request):
                 
                 ai_response = ask_gemini_comercial(number, text_received)
                 
-                # Si ai_response está vacío por un error, no enviamos nada por WhatsApp para evitar bucles
                 if ai_response:
                     if "[DERIVAR_VENTAS]" in ai_response:
                         clean_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
                         send_whatsapp_message(number, clean_response)
                         
                         alerta_texto = (
-                            f"🚨 *LEAD DETECTADO*\n\n"
-                            f"📱 *Cliente:* +{number}\n"
-                            f"💬 *Interés:* {clean_response}"
+                            f"🚨 *NUEVO LEAD / DERIVACIÓN COMERCIAL*\n\n"
+                            f"📱 *Número del cliente:* +{number}\n"
+                            f"💬 *Último mensaje del cliente:* {text_received}\n"
+                            f"🤖 *Respuesta del bot:* {clean_response}"
                         )
                         send_whatsapp_message(AGENTE_COMERCIAL_NUMBER, alerta_texto)
                     else:
@@ -107,7 +113,6 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
         return response.text
     except Exception as e:
         print("Error detallado en Gemini:", e)
-        # IMPORTANTE: Ya no devolvemos texto de error para evitar que el bot se responda a sí mismo
         return ""
 
 def send_whatsapp_message(to_number: str, message_text: str):
