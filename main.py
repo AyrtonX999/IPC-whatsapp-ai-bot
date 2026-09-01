@@ -22,40 +22,18 @@ ai_client = genai.Client(api_key=GEMINI_API_KEY)
 active_chats = {}
 last_message_times = {}
 
-# Tiempo de inactividad en segundos (Ejemplo: 900 segundos = 15 minutos)
-# Si pasan 15 minutos sin hablar, la conversación se reinicia sola desde cero.
-INACTIVITY_TIMEOUT = 900
+# Tiempo de inactividad de 10 minutos para reiniciar chats viejos automáticamente
+INACTIVITY_TIMEOUT = 600
 
 SYSTEM_INSTRUCTION_TEXT = (
-    "Eres un asesor comercial y especialista en atención al cliente de IPC Associates, "
-    "una empresa latinoamericana con presencia en Perú, Colombia y Panamá, certificada bajo ISO 9001:2015. "
-    "Tu objetivo principal es guiar a los clientes potenciales para que identifiquen qué servicio o equipo "
-    "se adapta perfectamente a su necesidad. No inventes productos ni servicios que no estén en el catálogo oficial. "
-    "No des precios, solo asesoría técnica y recomendaciones basadas en el portafolio.\n\n"
-    "Debes mantener un tono profesional, empático y consultivo. Siempre habla en español.\n\n"
-    "PORTAFOLIO DE PRODUCTOS Y SERVICIOS (CONOCIMIENTO OBLIGATORIO):\n"
-    "1. EQUIPOS DE FRÍO (Cadena de frío): Refrigeradoras ICE-LINED (con certificado PQS), Ultracongeladoras, Banco de sangre, "
-    "Refricongeladoras, Congeladoras (capacidades: 1015 L, 282 L, 350 L, 106 L, 610 L, 92 L, 528 L), "
-    "Refrigeradoras/Congeladoras (900 L, 1400 L, 106 L). "
-    "Servicios: Calificación IQ/OQ/PQ y Calibración de temperatura con trazabilidad INACAL.\n"
-    "2. EQUIPOS DE LABORATORIO: Campana de humo sin ductería, Cabina de flujo laminar horizontal, Cabina de Bioseguridad Clase II (DSI-150EB), "
-    "Incubadoras (30 L y 35 L), Centrífugas (45 L y 600 RPM), Balanza de precisión (BP3003B). "
-    "Servicios: Entrega, instalación, capacitación, validación y pruebas de bioseguridad.\n"
-    "3. CONTENEDORES PASIVOS (Transporte térmico): IPC BOX (PX-002), Caja VIP IPC, Maletines térmicos (12, 18, 24h), "
-    "I-BAG (2-8°C), Maletín CRT (15-25°C), Mochilas térmicas (IPC, CRT, dual), Autonomía hasta 120h con Thermocon Foam Bricks.\n"
-    "4. MOBILIARIO MÉDICO: Cama Galaxia, Cama Life Advance, Camilla ZR 4 planos, Mesa de 3 secciones para examen, "
-    "Silla Syriux Essential, Cuna Kids Polaris, Silla Génova, Carro de paro, Carro unidosis Nova, Mesa Mayo, "
-    "Carro auxiliar, Carros de transferencia Singularis / Singularis Alter.\n"
-    "5. SERVICIOS ADICIONALES: Verificación de certificados y plataforma de monitoreo en red local sin chips extra.\n\n"
-    "PROTOCOLO DE ATENCIÓN:\n"
-    "1. Saluda cordialmente, preséntate como asesor de IPC Associates y pregunta a qué sector pertenece (laboratorio, clínica, hospital, etc.).\n"
-    "2. Pregunta cuál es su requerimiento principal (almacenamiento en frío, transporte, laboratorio o mobiliario).\n"
-    "3. Haz preguntas específicas según la categoría (temperatura, volumen en litros, horas de autonomía o área de uso).\n"
-    "4. Recomienda 1 o 2 productos exactos del portafolio justificando con sus características técnicas.\n"
-    "5. **CIERRE Y DERIVACIÓN:** Después de entregar toda la información y la recomendación técnica, pregunta amablemente al cliente si se encuentra interesado para derivarlo con un Agente Comercial.\n"
-    "6. **DETECCIÓN DE INTERÉS:** Si el cliente responde afirmativamente (por ejemplo: 'sí', 'estoy interesado', 'quiero que me contacten', 'me avisan'), DEBES incluir obligatoriamente en tu respuesta la frase exacta: [DERIVAR_VENTAS] seguida de un resumen breve del equipo o servicio que le interesa y sus datos.\n"
-    "7. Cierra brindando los datos de contacto oficiales: correo (informes@ipcassociates-la.com), web (www.ipcassociates-la.com) y teléfonos (Perú +51 480 0647, Colombia +57 310 876 7402, Panamá +507 833 7346).\n\n"
-    "REGLAS: NUNCA des precios ni menciones productos fuera de esta lista."
+    "Eres un asesor técnico estricto de IPC Associates. "
+    "REGLAS ABSOLUTAS:\n"
+    "1. Sé extremadamente breve y directo. Cero textos largos, cero saludos repetitivos, cero rodeos.\n"
+    "2. Responde únicamente a la pregunta exacta que te hace el usuario en el mensaje actual.\n"
+    "3. No inventes productos ni des precios. Portafolio válido: Equipos de frío (Ice-Lined, ultracongeladoras, bancos de sangre, congeladoras), "
+    "Equipos de laboratorio (Campanas de flujo, bioseguridad, incubadoras, centrífugas), Contenedores pasivos (IPC Box, maletines térmicos) "
+    "y Mobiliario médico (Camas, carros de paro, mesas).\n"
+    "4. Si el cliente muestra interés de compra o pide cotización, responde con la información solicitada y añade obligatoriamente la frase: [DERIVAR_VENTAS]."
 )
 
 @app.get("/webhook")
@@ -69,11 +47,14 @@ async def verify_webhook(request: Request):
 async def receive_webhook(request: Request):
     try:
         data = await request.json()
-        
         entry = data.get('entry', [])[0]
         changes = entry.get('changes', [])[0]
-        value = changes.get('value', {})
+        value = changes.get('changes', {}) if 'changes' in changes else changes.get('value', {})
         
+        # Corrección segura para la estructura de Meta
+        if 'value' in changes:
+            value = changes['value']
+
         if 'messages' in value and len(value['messages']) > 0:
             message_obj = value['messages'][0]
             number = message_obj.get('from')
@@ -93,16 +74,14 @@ async def receive_webhook(request: Request):
                     send_whatsapp_message(number, clean_response)
                     
                     alerta_texto = (
-                        f"🚨 *NUEVO LEAD / DERIVACIÓN COMERCIAL*\n\n"
-                        f"📱 *Número del cliente:* +{number}\n"
-                        f"💬 *Detalle e Interés:* {clean_response}"
+                        f"🚨 *LEAD DETECTADO*\n\n"
+                        f"📱 *Cliente:* +{number}\n"
+                        f"💬 *Interés:* {clean_response}"
                     )
                     send_whatsapp_message(AGENTE_COMERCIAL_NUMBER, alerta_texto)
                 else:
                     send_whatsapp_message(number, ai_response)
-            else:
-                print("Evento recibido sin número de teléfono válido.")
-                
+                    
     except Exception as e:
         print("Error al procesar webhook:", e)
         
@@ -112,18 +91,13 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
     try:
         current_time = time.time()
         
-        # Verificar si ha pasado el tiempo límite de inactividad para reiniciar la sesión
         if user_number in last_message_times:
-            elapsed_time = current_time - last_message_times[user_number]
-            if elapsed_time > INACTIVITY_TIMEOUT:
-                print(f"Sesión expirada para {user_number} por inactividad. Reiniciando desde cero.")
+            if current_time - last_message_times[user_number] > INACTIVITY_TIMEOUT:
                 if user_number in active_chats:
                     del active_chats[user_number]
         
-        # Actualizar el registro del último mensaje de este usuario
         last_message_times[user_number] = current_time
 
-        # Crear nueva sesión si no existe (o si acaba de expirar)
         if user_number not in active_chats:
             active_chats[user_number] = ai_client.chats.create(
                 model='gemini-3.6-flash',
@@ -142,7 +116,7 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
             del active_chats[user_number]
         if user_number in last_message_times:
             del last_message_times[user_number]
-        return "Lo siento, tuve un breve inconveniente procesando tu mensaje. ¿Podrías repetirlo por favor?"
+        return "Disculpa, hubo un error técnico. Escríbeme nuevamente tu consulta."
 
 def send_whatsapp_message(to_number: str, message_text: str):
     url = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
