@@ -11,7 +11,8 @@ ACCESS_TOKEN = "EAAP4ZAc70DrQBSbsPK5QpbbBtVAhILGBEU0qC4JFrxB04xqtPBizQomzM3SFbsE
 PHONE_NUMBER_ID = "1350712648117758"
 VERIFY_TOKEN = "IPC_SECRET_TOKEN_2026"
 
-AGENTE_COMERCIAL_NUMBER = "51924726495"
+# URL de Power Automate configurada
+POWER_AUTOMATE_URL = "https://fb058902f544ecd1b22017ca5493c8.e6.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/23/workflows/78404d5c51db480ca90b73a09d065ffe/triggers/manual/paths/invoke?api-version=1"
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
@@ -54,8 +55,8 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
-            # Filtro anti-bucles riguroso
-            if number == PHONE_NUMBER_ID or number == AGENTE_COMERCIAL_NUMBER:
+            # Filtro anti-bucles riguroso (ya no necesitamos eximir al agente comercial por WhatsApp)
+            if number == PHONE_NUMBER_ID:
                 return {"status": "ok"}
             
             if not number and 'contacts' in value and len(value['contacts']) > 0:
@@ -82,13 +83,17 @@ async def receive_webhook(request: Request):
                         clean_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
                         send_whatsapp_message(number, clean_response)
                         
-                        alerta_texto = (
-                            f"🚨 *NUEVO LEAD / DERIVACIÓN COMERCIAL*\n\n"
-                            f"📱 *Número del cliente:* +{number}\n"
-                            f"💬 *Último mensaje del cliente:* {text_received}\n"
-                            f"🤖 *Respuesta del bot:* {clean_response}"
-                        )
-                        send_whatsapp_message(AGENTE_COMERCIAL_NUMBER, alerta_texto)
+                        # Notificar automáticamente a Power Automate para que envíe el correo de alerta
+                        payload_lead = {
+                            "telefono": number,
+                            "mensaje": text_received,
+                            "respuesta_bot": clean_response
+                        }
+                        try:
+                            res_pa = requests.post(POWER_AUTOMATE_URL, json=payload_lead)
+                            print("Alerta enviada a Power Automate. Estado:", res_pa.status_code)
+                        except Exception as pa_err:
+                            print("Error al notificar a Power Automate:", pa_err)
                     else:
                         send_whatsapp_message(number, ai_response)
                     
