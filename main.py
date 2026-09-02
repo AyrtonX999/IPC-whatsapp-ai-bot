@@ -18,6 +18,7 @@ ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 active_chats = {}
 last_message_times = {}
+last_processed_timestamps = {}  # Control anti-ráfagas de Meta
 INACTIVITY_TIMEOUT = 3600
 
 SYSTEM_INSTRUCTION_TEXT = (
@@ -53,7 +54,7 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
-            # FILTRO ANTI-BUCLES RIGUROSO: Ignorar si viene del bot o del número del agente comercial
+            # Filtro anti-bucles riguroso
             if number == PHONE_NUMBER_ID or number == AGENTE_COMERCIAL_NUMBER:
                 return {"status": "ok"}
             
@@ -62,6 +63,16 @@ async def receive_webhook(request: Request):
             
             if number and message_obj.get('type') == 'text':
                 text_received = message_obj['text']['body']
+                
+                # CONTROL ANTI-RÁFAGAS: Si el mismo número manda un mensaje idéntico en menos de 5 segundos, se ignora
+                current_time = time.time()
+                if number in last_processed_timestamps:
+                    last_msg, last_time = last_processed_timestamps[number]
+                    if last_msg == text_received and (current_time - last_time) < 5:
+                        print(f"Mensaje duplicado bloqueado por ráfaga de {number}: {text_received}")
+                        return {"status": "ok"}
+                
+                last_processed_timestamps[number] = (text_received, current_time)
                 print(f"Mensaje recibido de {number}: {text_received}")
                 
                 ai_response = ask_gemini_comercial(number, text_received)
