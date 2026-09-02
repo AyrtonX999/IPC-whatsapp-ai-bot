@@ -53,8 +53,8 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
-            # Bloqueo total para evitar que el bot procese sus propios mensajes enviados
-            if number == PHONE_NUMBER_ID:
+            # FILTRO ANTI-BUCLES RIGUROSO: Ignorar si viene del bot o del número del agente comercial
+            if number == PHONE_NUMBER_ID or number == AGENTE_COMERCIAL_NUMBER:
                 return {"status": "ok"}
             
             if not number and 'contacts' in value and len(value['contacts']) > 0:
@@ -87,31 +87,38 @@ async def receive_webhook(request: Request):
     return {"status": "ok"}
 
 def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
-    try:
-        current_time = time.time()
-        
-        if user_number in last_message_times:
-            if current_time - last_message_times[user_number] > INACTIVITY_TIMEOUT:
-                if user_number in active_chats:
-                    del active_chats[user_number]
-        
-        last_message_times[user_number] = current_time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            current_time = time.time()
+            
+            if user_number in last_message_times:
+                if current_time - last_message_times[user_number] > INACTIVITY_TIMEOUT:
+                    if user_number in active_chats:
+                        del active_chats[user_number]
+            
+            last_message_times[user_number] = current_time
 
-        if user_number not in active_chats:
-            active_chats[user_number] = ai_client.chats.create(
-                model='gemini-3.6-flash',
-                config={
-                    'system_instruction': SYSTEM_INSTRUCTION_TEXT
-                }
-            )
-        
-        chat_session = active_chats[user_number]
-        response = chat_session.send_message(user_prompt)
-        
-        return response.text
-    except Exception as e:
-        print("Error detallado en Gemini:", e)
-        return ""
+            if user_number not in active_chats:
+                active_chats[user_number] = ai_client.chats.create(
+                    model='gemini-3.6-flash',
+                    config={
+                        'system_instruction': SYSTEM_INSTRUCTION_TEXT
+                    }
+                )
+            
+            chat_session = active_chats[user_number]
+            response = chat_session.send_message(user_prompt)
+            
+            return response.text
+        except Exception as e:
+            print(f"Intento {attempt + 1} - Error detallado en Gemini: {e}")
+            if user_number in active_chats:
+                del active_chats[user_number]
+            if attempt < max_retries - 1:
+                time.sleep(2)
+                continue
+            return ""
 
 def send_whatsapp_message(to_number: str, message_text: str):
     url = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
