@@ -58,7 +58,7 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
-            # Filtro anti-bucles riguroso (ya no necesitamos eximir al agente comercial por WhatsApp)
+            # Filtro anti-bucles riguroso
             if number == PHONE_NUMBER_ID:
                 return {"status": "ok"}
             
@@ -106,7 +106,7 @@ async def receive_webhook(request: Request):
     return {"status": "ok"}
 
 def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
-    max_retries = 3
+    max_retries = 1  # <--- Ajustado a 1 solo intento para evitar duplicidades
     for attempt in range(max_retries):
         try:
             current_time = time.time()
@@ -134,9 +134,6 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
             print(f"Intento {attempt + 1} - Error detallado en Gemini: {e}")
             if user_number in active_chats:
                 del active_chats[user_number]
-            if attempt < max_retries - 1:
-                time.sleep(2)
-                continue
             return ""
 
 def send_whatsapp_message(to_number: str, message_text: str):
