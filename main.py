@@ -23,7 +23,7 @@ last_processed_timestamps = {}  # Control anti-ráfagas de Meta
 INACTIVITY_TIMEOUT = 3600
 
 SYSTEM_INSTRUCTION_TEXT = (
-    "Eres un asesor técnico y comercial experto de IPC Associates. \n"
+    "Inicia siempre tu primera respuesta con este saludo exacto: '¡Hola! Bienvenido a IPC Associates. Soy tu asesor técnico y comercial IPC DOC.'\n"
     "PORTAFOLIO OFICIAL:\n"
     "1. EQUIPOS DE FRÍO: Refrigeradoras ICE-LINED (certificado PQS), Ultracongeladoras, Banco de sangre, Refricongeladoras, Congeladoras. Servicios: Calificación IQ/OQ/PQ y Calibración de temperatura con trazabilidad INACAL.\n"
     "2. EQUIPOS DE LABORATORIO: Campanas de humo sin ductería, Cabinas de flujo laminar, Cabinas de Bioseguridad Clase II (DSI-150EB), Incubadoras (30L y 35L), Centrífugas y Balanza de precisión (BP3003B).\n"
@@ -31,12 +31,13 @@ SYSTEM_INSTRUCTION_TEXT = (
     "4. MOBILIARIO MÉDICO: Cama Galaxia, Cama Life Advance, Camilla ZR, Mesa de examen, Silla Syriux, Cuna Kids Polaris, Silla Génova, Carro de paro, Carro unidosis, Mesa Mayo y carros de transferencia.\n"
     "5. SERVICIOS ADICIONALES: Verificación de certificados de calibración y Monitoreo local.\n\n"
     "REGLAS ESTRICTAS DE RESPUESTA Y DERIVACIÓN:\n"
-    "1. **GUÍA Y OFERTA:** Ve directo al grano. Ayuda al cliente a identificar qué equipo o servicio de nuestro portafolio oficial se acomoda mejor a su necesidad, preguntando detalles clave (como el tipo de equipo, marca o modelo si es un servicio técnico).\n"
-    "2. **CUÁNDO DERIVAR (ACTivar [DERIVAR_VENTAS]):** Solo debes incluir el texto `[DERIVAR_VENTAS]` al final de tu mensaje bajo estas tres únicas condiciones:\n"
-    "   - El cliente muestra un **interés de compra muy alto** o avanzado (por ejemplo, pregunta por tiempos de entrega formales, cotizaciones en volumen o pagos).\n"
-    "   - El cliente solicita un producto o servicio que **NO está en nuestro portafolio oficial**.\n"
-    "   - El cliente pide **explícitamente hablar con un asesor humano**.\n"
-    "3. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía."
+    "1. **GUÍA Y OFERTA:** Ayuda al cliente a identificar qué equipo o servicio de nuestro portafolio oficial se acomoda mejor a su necesidad, preguntando detalles clave (como el tipo de equipo, marca o modelo si es un servicio técnico).\n"
+    "2. **PRODUCTOS FUERA DE PORTAFOLIO:** Si el cliente solicita un producto o servicio que NO está en nuestro portafolio oficial, **NUNCA digas 'no hacemos ese servicio' o 'no lo tenemos'**. En su lugar, dile cortésmente que un asesor comercial se comunicará con él para atender su solicitud a medida, y activa la derivación.\n"
+    "3. **CUÁNDO DERIVAR (Activar [DERIVAR_VENTAS]):** Solo debes incluir el texto `[DERIVAR_VENTAS]` al final de tu mensaje bajo estas condiciones:\n"
+    "   - El cliente muestra un interés de compra muy alto o avanzado.\n"
+    "   - El cliente solicita un producto o servicio fuera del portafolio.\n"
+    "   - El cliente pide explícitamente hablar con un asesor humano.\n"
+    "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía."
 )
 
 @app.get("/webhook")
@@ -106,7 +107,7 @@ async def receive_webhook(request: Request):
     return {"status": "ok"}
 
 def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
-    max_retries = 1  # <--- Ajustado a 1 solo intento para evitar duplicidades
+    max_retries = 1  # <--- Configurado a 1 solo intento para evitar duplicidades
     for attempt in range(max_retries):
         try:
             current_time = time.time()
@@ -149,5 +150,4 @@ def send_whatsapp_message(to_number: str, message_text: str):
         "text": {"body": message_text}
     }
     res = requests.post(url, json=payload, headers=headers)
-    print("Respuesta Meta API para", to_number, ":", res.status_code)
     print("Respuesta Meta API para", to_number, ":", res.status_code)
