@@ -20,7 +20,9 @@ ai_client = genai.Client(api_key=GEMINI_API_KEY)
 active_chats = {}
 last_message_times = {}
 last_processed_timestamps = {}  # Control anti-ráfagas de Meta
+last_lead_notifications = {}    # Control anti-spam para Power Automate (Guarda el timestamp del último correo enviado por número)
 INACTIVITY_TIMEOUT = 3600
+LEAD_COOLDOWN = 1800            # 1800 segundos = 30 minutos de espera antes de mandar otro correo al mismo cliente
 
 SYSTEM_INSTRUCTION_TEXT = (
     "Inicia siempre tu primera respuesta con este saludo exacto: '¡Hola! Bienvenido a IPC Associates. Soy tu asesor técnico y comercial IPC DOC.'\n"
@@ -87,17 +89,25 @@ async def receive_webhook(request: Request):
                         clean_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
                         send_whatsapp_message(number, clean_response)
                         
-                        # Notificar automáticamente a Power Automate para que envíe el correo de alerta
-                        payload_lead = {
-                            "telefono": number,
-                            "mensaje": text_received,
-                            "respuesta_bot": clean_response
-                        }
-                        try:
-                            res_pa = requests.post(POWER_AUTOMATE_URL, json=payload_lead)
-                            print("Alerta enviada a Power Automate. Estado:", res_pa.status_code)
-                        except Exception as pa_err:
-                            print("Error al notificar a Power Automate:", pa_err)
+                        # CONTROL ANTI-SPAM PARA POWER AUTOMATE: Solo se envía correo si no se le ha enviado uno a este número en los últimos 30 minutos
+                        should_send_email = True
+                        if number in last_lead_notifications:
+                            if (current_time - last_lead_notifications[number]) < LEAD_COOLDOWN:
+                                should_send_email = False
+                                print(f"Alerta a Power Automate omitida (cooldown activo) para el número {number}")
+
+                        if should_send_email:
+                            last_lead_notifications[number] = current_time
+                            payload_lead = {
+                                "telefono": number,
+                                "mensaje": text_received,
+                                "respuesta_bot": clean_response
+                            }
+                            try:
+                                res_pa = requests.post(POWER_AUTOMATE_URL, json=payload_lead)
+                                print("Alerta enviada a Power Automate. Estado:", res_pa.status_code)
+                            except Exception as pa_err:
+                                print("Error al notificar a Power Automate:", pa_err)
                     else:
                         send_whatsapp_message(number, ai_response)
                     
@@ -107,7 +117,7 @@ async def receive_webhook(request: Request):
     return {"status": "ok"}
 
 def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
-    max_retries = 1  # <--- Configurado a 1 solo intento para evitar duplicidades
+    max_retries = 1
     for attempt in range(max_retries):
         try:
             current_time = time.time()
