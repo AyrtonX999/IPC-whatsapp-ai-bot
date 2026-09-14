@@ -42,7 +42,7 @@ SYSTEM_INSTRUCTION_TEXT = (
     "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía."
      "5. No escribas nada en negrita ni pongas asterisco."
     "6. Si te preguntan donde ver Certificado de Calibracion indicas que pueden verlo en el siguiente enlace https://ipcassociates-la.com/certificados/."
-    "7. Ofrece al cliente en el saludo del primer mensaje utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html , sin olvidar mostrar los servicios y productos que ofrecemos"
+    "7. sin olvidar mostrar los servicios y productos que ofrecemos. Ofrece al cliente en el saludo del primer mensaje utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html "
 )
 
 @app.get("/webhook")
