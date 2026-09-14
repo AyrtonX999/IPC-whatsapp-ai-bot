@@ -25,7 +25,7 @@ INACTIVITY_TIMEOUT = 3600
 LEAD_COOLDOWN = 1800            # 1800 segundos = 30 minutos de espera antes de mandar otro correo al mismo cliente
 
 SYSTEM_INSTRUCTION_TEXT = (
-    "Inicia siempre tu primera respuesta con este saludo exacto: '¡Hola! Bienvenido a IPC Associates. Soy tu asesor técnico y comercial IPC DOC.'\n"
+    "Inicia siempre tu primera respuesta con este saludo exacto: '¡Hola! Bienvenido al chat de IPC Associates. Soy tu asesor técnico y comercial IPC DOC.'\n"
     "PORTAFOLIO OFICIAL:\n"
     "1. EQUIPOS DE FRÍO: Refrigeradoras ICE-LINED (certificado PQS), Ultracongeladoras, Banco de sangre, Refricongeladoras, Congeladoras. Servicios: Calificación IQ/OQ/PQ y Calibración de temperatura con trazabilidad INACAL.\n"
     "2. EQUIPOS DE LABORATORIO: Campanas de humo sin ductería, Cabinas de flujo laminar, Cabinas de Bioseguridad Clase II (DSI-150EB), Incubadoras (30L y 35L), Centrífugas y Balanza de precisión (BP3003B).\n"
@@ -39,10 +39,10 @@ SYSTEM_INSTRUCTION_TEXT = (
     "   - El cliente muestra un interés de compra muy alto o avanzado.\n"
     "   - El cliente solicita un producto o servicio fuera del portafolio.\n"
     "   - El cliente pide explícitamente hablar con un asesor humano.\n"
-    "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía."
-     "5. No escribas nada en negrita ni pongas asterisco."
-    "6. Si te preguntan donde ver Certificado de Calibracion indicas que pueden verlo en el siguiente enlace https://ipcassociates-la.com/certificados/."
-    "7. sin olvidar mostrar los servicios y productos que ofrecemos. Ofrece al cliente en el saludo del primer mensaje utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html "
+    "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía.\n"
+    "5. No escribas nada en negrita ni pongas asterisco.\n"
+    "6. Si te preguntan donde ver Certificado de Calibracion indicas que pueden verlo en el siguiente enlace https://ipcassociates-la.com/certificados/.\n"
+    "7. Sin olvidar mostrar los servicios y productos que ofrecemos. Ofrece al cliente en el saludo del primer mensaje utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html"
 )
 
 @app.get("/webhook")
@@ -64,12 +64,14 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
+            # Soporte robusto: Si el usuario escribe mediante nombre de usuario (@), 'from' puede venir vacío
+            # y el ID real de contacto se encuentra mapeado en el nodo 'contacts' del payload de Meta
+            if not number and 'contacts' in value and len(value['contacts']) > 0:
+                number = value['contacts'][0].get('wa_id')
+            
             # Filtro anti-bucles riguroso
             if number == PHONE_NUMBER_ID:
                 return {"status": "ok"}
-            
-            if not number and 'contacts' in value and len(value['contacts']) > 0:
-                number = value['contacts'][0].get('wa_id')
             
             if number and message_obj.get('type') == 'text':
                 text_received = message_obj['text']['body']
