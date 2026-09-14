@@ -40,6 +40,7 @@ SYSTEM_INSTRUCTION_TEXT = (
     "   - El cliente solicita un producto o servicio fuera del portafolio.\n"
     "   - El cliente pide explícitamente hablar con un asesor humano.\n"
     "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía."
+     "5. No escribas nada en negrita ni pongas asterisco."
 )
 
 @app.get("/webhook")
