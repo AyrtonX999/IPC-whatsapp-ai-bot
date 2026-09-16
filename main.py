@@ -20,9 +20,9 @@ ai_client = genai.Client(api_key=GEMINI_API_KEY)
 active_chats = {}
 last_message_times = {}
 last_processed_timestamps = {}  # Control anti-ráfagas de Meta
-last_lead_notifications = {}    # Control anti-spam para Power Automate (Guarda el timestamp del último correo enviado por número)
+last_lead_notifications = {}    # Control anti-spam para Power Automate
 INACTIVITY_TIMEOUT = 3600
-LEAD_COOLDOWN = 1800            # 1800 segundos = 30 minutos de espera antes de mandar otro correo al mismo cliente
+LEAD_COOLDOWN = 1800            # 30 minutos de espera antes de mandar otro correo al mismo cliente
 
 SYSTEM_INSTRUCTION_TEXT = (
     "Inicia siempre tu primera respuesta con este saludo exacto: '¡Hola! Bienvenido al chat de IPC Associates. Soy tu asesor técnico y comercial IPC DOC.'\n"
@@ -42,9 +42,8 @@ SYSTEM_INSTRUCTION_TEXT = (
     "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía.\n"
     "5. No escribas nada en negrita ni pongas asterisco.\n"
     "6. Si te preguntan donde ver Certificado de Calibracion indicas que pueden verlo en el siguiente enlace https://ipcassociates-la.com/certificados/.\n"
-    "7. Mostrar los servicios y productos que ofrecemos. Luego al finalizar el saludo ofrece al cliente utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html"
+    "7. Mostrar los servicios y productos que ofrecemos. Luego al finalizar el saludo ofrece al cliente utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html\n"
     "8. Solo saluda una vez y que el saludo no tenga mucho texto, informa nuestros servicios pero no me llenes todo de texto"
-)
 )
 
 @app.get("/webhook")
@@ -66,19 +65,15 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
-            # Soporte robusto: Si el usuario escribe mediante nombre de usuario (@), 'from' puede venir vacío
-            # y el ID real de contacto se encuentra mapeado en el nodo 'contacts' del payload de Meta
             if not number and 'contacts' in value and len(value['contacts']) > 0:
                 number = value['contacts'][0].get('wa_id')
             
-            # Filtro anti-bucles riguroso
             if number == PHONE_NUMBER_ID:
                 return {"status": "ok"}
             
             if number and message_obj.get('type') == 'text':
                 text_received = message_obj['text']['body']
                 
-                # CONTROL ANTI-RÁFAGAS: Si el mismo número manda un mensaje idéntico en menos de 5 segundos, se ignora
                 current_time = time.time()
                 if number in last_processed_timestamps:
                     last_msg, last_time = last_processed_timestamps[number]
@@ -96,7 +91,6 @@ async def receive_webhook(request: Request):
                         clean_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
                         send_whatsapp_message(number, clean_response)
                         
-                        # CONTROL ANTI-SPAM PARA POWER AUTOMATE: Solo se envía correo si no se le ha enviado uno a este número en los últimos 30 minutos
                         should_send_email = True
                         if number in last_lead_notifications:
                             if (current_time - last_lead_notifications[number]) < LEAD_COOLDOWN:
@@ -138,7 +132,7 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
 
             if user_number not in active_chats:
                 active_chats[user_number] = ai_client.chats.create(
-                    model='gemini-3.6-flash',
+                    model='gemini-2.5-flash',
                     config={
                         'system_instruction': SYSTEM_INSTRUCTION_TEXT
                     }
