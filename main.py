@@ -132,7 +132,7 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
 
             if user_number not in active_chats:
                 active_chats[user_number] = ai_client.chats.create(
-                    model='gemini-2.5-flash',
+                    model='gemini-3.6-flash',  # <--- ACTUALIZADO AQUÍ
                     config={
                         'system_instruction': SYSTEM_INSTRUCTION_TEXT
                     }
