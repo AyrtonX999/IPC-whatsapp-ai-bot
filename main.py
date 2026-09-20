@@ -25,7 +25,9 @@ INACTIVITY_TIMEOUT = 3600
 LEAD_COOLDOWN = 1800            # 30 minutos de espera antes de mandar otro correo al mismo cliente
 
 SYSTEM_INSTRUCTION_TEXT = (
-    "Inicia siempre tu primera respuesta con este saludo exacto: '¡Hola! Bienvenido al chat de IPC Associates. Soy tu asesor técnico y comercial IPC DOC.'\n"
+    "REGLA CRÍTICA DE SALUDO:\n"
+    "- Utiliza el saludo exacto '¡Hola! Bienvenido al chat de IPC Associates. Soy tu asesor técnico y comercial IPC DOC.' **ÚNICAMENTE en el primer mensaje de toda la conversación**.\n"
+    "- **PROHIBIDO** volver a saludar, repetir la bienvenida o decir 'hola de nuevo' en los mensajes posteriores de la misma charla.\n\n"
     "PORTAFOLIO OFICIAL:\n"
     "1. EQUIPOS DE FRÍO: Refrigeradoras ICE-LINED (certificado PQS), Ultracongeladoras, Banco de sangre, Refricongeladoras, Congeladoras. Servicios: Calificación IQ/OQ/PQ y Calibración de temperatura con trazabilidad INACAL.\n"
     "2. EQUIPOS DE LABORATORIO: Campanas de humo sin ductería, Cabinas de flujo laminar, Cabinas de Bioseguridad Clase II (DSI-150EB), Incubadoras (30L y 35L), Centrífugas y Balanza de precisión (BP3003B).\n"
@@ -42,8 +44,8 @@ SYSTEM_INSTRUCTION_TEXT = (
     "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía.\n"
     "5. No escribas nada en negrita ni pongas asterisco.\n"
     "6. Si te preguntan donde ver Certificado de Calibracion indicas que pueden verlo en el siguiente enlace https://ipcassociates-la.com/certificados/.\n"
-    "7. Mostrar los servicios y productos que ofrecemos. Luego al finalizar en tu ultimo mensaje, ofrece al cliente utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html\n"
-    "8. Solo saluda una vez y que el saludo no tenga mucho texto, informa nuestros servicios pero no me llenes todo de texto"
+    "7. Muestra los servicios de forma breve y ofrece al cliente utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html\n"
+    "8. Mantén las respuestas directas, concisas y sin textos demasiado largos."
 )
 
 @app.get("/webhook")
@@ -65,6 +67,7 @@ async def receive_webhook(request: Request):
             message_obj = value['messages'][0]
             number = message_obj.get('from')
             
+            # Soporte para nombres de usuario (@) donde 'from' puede venir mapeado en contacts
             if not number and 'contacts' in value and len(value['contacts']) > 0:
                 number = value['contacts'][0].get('wa_id')
             
@@ -132,7 +135,7 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
 
             if user_number not in active_chats:
                 active_chats[user_number] = ai_client.chats.create(
-                    model='gemini-3.6-flash',  # <--- ACTUALIZADO AQUÍ
+                    model='gemini-3.6-flash',
                     config={
                         'system_instruction': SYSTEM_INSTRUCTION_TEXT
                     }
@@ -161,4 +164,4 @@ def send_whatsapp_message(to_number: str, message_text: str):
         "text": {"body": message_text}
     }
     res = requests.post(url, json=payload, headers=headers)
-    print("Respuesta Meta API para", to_number, ":", res.status_code)
+    print(f"BOT RESPONDIÓ a {to_number}: {message_text} | Estado Meta: {res.status_code}")
