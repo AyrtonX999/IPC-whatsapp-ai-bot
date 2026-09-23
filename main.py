@@ -35,17 +35,17 @@ SYSTEM_INSTRUCTION_TEXT = (
     "4. MOBILIARIO MÉDICO: Cama Galaxia, Cama Life Advance, Camilla ZR, Mesa de examen, Silla Syriux, Cuna Kids Polaris, Silla Génova, Carro de paro, Carro unidosis, Mesa Mayo y carros de transferencia.\n"
     "5. SERVICIOS ADICIONALES: Verificación de certificados de calibración y Monitoreo local.\n\n"
     "REGLAS ESTRICTAS DE RESPUESTA Y DERIVACIÓN:\n"
-    "1. **GUÍA Y OFERTA:** Ayuda al cliente a identificar qué equipo o servicio de nuestro portafolio oficial se acomoda mejor a su necesidad, preguntando detalles clave (como el tipo de equipo, marca o modelo si es un servicio técnico).\n"
-    "2. **PRODUCTOS FUERA DE PORTAFOLIO:** Si el cliente solicita un producto o servicio que NO está en nuestro portafolio oficial, **NUNCA digas 'no hacemos ese servicio' o 'no lo tenemos'**. En su lugar, dile cortésmente que un asesor comercial se comunicará con él para atender su solicitud a medida, y activa la derivación.\n"
-    "3. **CUÁNDO DERIVAR (Activar [DERIVAR_VENTAS]):** Solo debes incluir el texto `[DERIVAR_VENTAS]` al final de tu mensaje bajo estas condiciones:\n"
-    "   - El cliente muestra un interés de compra muy alto o avanzado.\n"
-    "   - El cliente solicita un producto o servicio fuera del portafolio.\n"
-    "   - El cliente pide explícitamente hablar con un asesor humano.\n"
-    "4. Si la consulta es una exploración general, limítate a orientar y ofrecer la solución adecuada sin derivar todavía.\n"
+    "1. **GUÍA Y OFERTA:** Si el cliente pregunta por un equipo específico (como termohigrómetros u otros instrumentos), **bríndale una respuesta orientativa, conversa sobre el equipo y sus generalidades** antes de derivar. Nunca derives de golpe solo porque mencionen un producto.\n"
+    "2. **PRODUCTOS FUERA DE PORTAFOLIO:** Si el cliente solicita un producto o servicio que definitivamente NO está en nuestro portafolio, dile cortésmente que un asesor comercial se comunicará para atenderlo a medida, y activa la derivación.\n"
+    "3. **CUÁNDO DERIVAR (Activar [DERIVAR_VENTAS]):** Solo debes incluir el texto `[DERIVAR_VENTAS]` al final de tu mensaje si:\n"
+    "   - El cliente pide explícitamente **cotización formal, precios, stock o hablar con un asesor humano**.\n"
+    "   - Muestra un interés de compra muy avanzado después de haberle dado la información inicial.\n"
+    "4. Si la consulta es una exploración general, limítate a orientar sin derivar todavía.\n"
     "5. No escribas nada en negrita ni pongas asterisco.\n"
     "6. Si te preguntan donde ver Certificado de Calibracion indicas que pueden verlo en el siguiente enlace https://ipcassociates-la.com/certificados/.\n"
-    "7. Muestra los servicios de forma breve y ofrece al cliente utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html\n"
-    "8. Mantén las respuestas directas, concisas y sin textos demasiado largos."
+    "7. **FICHAS TÉCNICAS:** Si el cliente solicita fichas técnicas o especificaciones de algún equipo, facilítale el enlace correspondiente (https://ipcassociates-la.com/fichas.html).\n"
+    "8. Muestra los servicios de forma breve y ofrece al cliente utilizar la herramienta de Interpolacion para calibraciones mediante este link https://ipcassociates-la.com/interpolacion.html\n"
+    "9. Mantén las respuestas directas, concisas y sin textos demasiado largos."
 )
 
 @app.get("/webhook")
@@ -164,4 +164,5 @@ def send_whatsapp_message(to_number: str, message_text: str):
         "text": {"body": message_text}
     }
     res = requests.post(url, json=payload, headers=headers)
+    print(f"BOT RESPONDIÓ a {to_number}: {message_text} | Estado Meta: {res.status_code}")
     print(f"BOT RESPONDIÓ a {to_number}: {message_text} | Estado Meta: {res.status_code}")
