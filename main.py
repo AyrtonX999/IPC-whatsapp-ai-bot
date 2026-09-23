@@ -165,4 +165,3 @@ def send_whatsapp_message(to_number: str, message_text: str):
     }
     res = requests.post(url, json=payload, headers=headers)
     print(f"BOT RESPONDIÓ a {to_number}: {message_text} | Estado Meta: {res.status_code}")
-    print(f"BOT RESPONDIÓ a {to_number}: {message_text} | Estado Meta: {res.status_code}")
