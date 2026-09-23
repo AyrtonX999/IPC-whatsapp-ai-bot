@@ -18,6 +18,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 ai_client = genai.Client(api_key=GEMINI_API_KEY)
 
 active_chats = {}
+conversation_history = {}  # Historial de texto de cada conversación
 last_message_times = {}
 last_processed_timestamps = {}  # Control anti-ráfagas de Meta
 last_lead_notifications = {}    # Control anti-spam para Power Automate
@@ -47,12 +48,14 @@ SYSTEM_INSTRUCTION_TEXT = (
     "9. Mantén las respuestas directas, concisas y sin textos demasiado largos."
 )
 
+
 @app.get("/webhook")
 async def verify_webhook(request: Request):
     params = request.query_params
     if params.get("hub.verify_token") == VERIFY_TOKEN:
         return Response(content=params.get("hub.challenge"), media_type="text/plain")
     return Response(content="Token inválido", status_code=403)
+
 
 @app.post("/webhook")
 async def receive_webhook(request: Request):
@@ -65,34 +68,51 @@ async def receive_webhook(request: Request):
         if 'messages' in value and len(value['messages']) > 0:
             message_obj = value['messages'][0]
             number = message_obj.get('from')
-            
+
             # Soporte para nombres de usuario (@) donde 'from' puede venir mapeado en contacts
             if not number and 'contacts' in value and len(value['contacts']) > 0:
                 number = value['contacts'][0].get('wa_id')
-            
+
             if number == PHONE_NUMBER_ID:
                 return {"status": "ok"}
-            
+
             if number and message_obj.get('type') == 'text':
                 text_received = message_obj['text']['body']
-                
+
                 current_time = time.time()
                 if number in last_processed_timestamps:
                     last_msg, last_time = last_processed_timestamps[number]
                     if last_msg == text_received and (current_time - last_time) < 5:
                         print(f"Mensaje duplicado bloqueado por ráfaga de {number}: {text_received}")
                         return {"status": "ok"}
-                
+
                 last_processed_timestamps[number] = (text_received, current_time)
                 print(f"Mensaje recibido de {number}: {text_received}")
-                
+
+                # Reiniciar el historial cuando comienza otra sesión
+                # después de una hora de inactividad.
+                previous_time = last_message_times.get(number)
+                if previous_time is not None and current_time - previous_time > INACTIVITY_TIMEOUT:
+                    conversation_history.pop(number, None)
+
+                # Guardar el mensaje del cliente.
+                conversation_history.setdefault(number, []).append(
+                    f"Cliente: {text_received}"
+                )
+
                 ai_response = ask_gemini_comercial(number, text_received)
-                
+
                 if ai_response:
+                    # Guardar la respuesta sin la etiqueta interna.
+                    history_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
+                    conversation_history[number].append(
+                        f"IPC DOC: {history_response}"
+                    )
+
                     if "[DERIVAR_VENTAS]" in ai_response:
                         clean_response = ai_response.replace("[DERIVAR_VENTAS]", "").strip()
                         send_whatsapp_message(number, clean_response)
-                        
+
                         should_send_email = True
                         if number in last_lead_notifications:
                             if (current_time - last_lead_notifications[number]) < LEAD_COOLDOWN:
@@ -104,7 +124,10 @@ async def receive_webhook(request: Request):
                             payload_lead = {
                                 "telefono": number,
                                 "mensaje": text_received,
-                                "respuesta_bot": clean_response
+                                "respuesta_bot": clean_response,
+                                "conversacion": "\n\n".join(
+                                    conversation_history.get(number, [])
+                                )
                             }
                             try:
                                 res_pa = requests.post(POWER_AUTOMATE_URL, json=payload_lead)
@@ -113,23 +136,24 @@ async def receive_webhook(request: Request):
                                 print("Error al notificar a Power Automate:", pa_err)
                     else:
                         send_whatsapp_message(number, ai_response)
-                    
+
     except Exception as e:
         print("Error general en webhook:", e)
-        
+
     return {"status": "ok"}
+
 
 def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
     max_retries = 1
     for attempt in range(max_retries):
         try:
             current_time = time.time()
-            
+
             if user_number in last_message_times:
                 if current_time - last_message_times[user_number] > INACTIVITY_TIMEOUT:
                     if user_number in active_chats:
                         del active_chats[user_number]
-            
+
             last_message_times[user_number] = current_time
 
             if user_number not in active_chats:
@@ -139,16 +163,17 @@ def ask_gemini_comercial(user_number: str, user_prompt: str) -> str:
                         'system_instruction': SYSTEM_INSTRUCTION_TEXT
                     }
                 )
-            
+
             chat_session = active_chats[user_number]
             response = chat_session.send_message(user_prompt)
-            
+
             return response.text
         except Exception as e:
             print(f"Intento {attempt + 1} - Error detallado en Gemini: {e}")
             if user_number in active_chats:
                 del active_chats[user_number]
             return ""
+
 
 def send_whatsapp_message(to_number: str, message_text: str):
     url = f"https://graph.facebook.com/v20.0/{PHONE_NUMBER_ID}/messages"
