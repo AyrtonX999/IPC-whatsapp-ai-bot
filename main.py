@@ -1120,7 +1120,7 @@ IPC dispone de una herramienta web de interpolación.
 
 ENLACE OFICIAL:
 
-https://ipcassociates-la.com/interpolacion.html
+https://ipcassociates-la.com/interpolacion/
 
 Si un cliente pregunta:
 
@@ -1135,7 +1135,7 @@ RESPUESTA ORIENTATIVA:
 
 Puedes utilizar nuestra herramienta de interpolación para calcular correcciones a partir de tus puntos de calibración:
 
-https://ipcassociates-la.com/interpolacion.html
+https://ipcassociates-la.com/interpolacion/
 
 IMPORTANTE:
 
